@@ -1,0 +1,781 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Google Photos Cleaner – AI-powered photo review tool using LLaVA to classify and flag unwanted photos for deletion.">
+    <title>📸 Google Photos Cleaner</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg: #0d0f14;
+            --surface: #161922;
+            --surface2: #1e2330;
+            --border: #2a2f3d;
+            --accent: #5b7cf6;
+            --accent-glow: rgba(91,124,246,0.25);
+            --keep: #22c55e;
+            --keep-bg: rgba(34,197,94,0.1);
+            --delete: #ef4444;
+            --delete-bg: rgba(239,68,68,0.1);
+            --text: #e8ecf4;
+            --muted: #6b7a99;
+            --radius: 14px;
+            --card-radius: 16px;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            min-height: 100vh;
+            padding: 0 0 60px;
+        }
+
+        /* ── Header ── */
+        header {
+            background: linear-gradient(135deg, #1a1f2e 0%, #0d0f14 100%);
+            border-bottom: 1px solid var(--border);
+            padding: 28px 40px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            backdrop-filter: blur(12px);
+        }
+
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+        }
+
+        .logo-icon {
+            width: 44px;
+            height: 44px;
+            background: linear-gradient(135deg, var(--accent), #8b5cf6);
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 22px;
+            box-shadow: 0 0 20px var(--accent-glow);
+        }
+
+        .logo h1 {
+            font-size: 20px;
+            font-weight: 700;
+            background: linear-gradient(90deg, #e8ecf4, #a0b0d0);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .logo span {
+            font-size: 12px;
+            color: var(--muted);
+            font-weight: 400;
+            display: block;
+            -webkit-text-fill-color: var(--muted);
+        }
+
+        .header-actions {
+            display: flex;
+            gap: 12px;
+            align-items: center;
+        }
+
+        /* ── Buttons ── */
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 10px 22px;
+            border: none;
+            border-radius: 10px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 600;
+            font-family: 'Inter', sans-serif;
+            transition: all 0.2s ease;
+            text-decoration: none;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, var(--accent), #7c3aed);
+            color: #fff;
+            box-shadow: 0 4px 20px var(--accent-glow);
+        }
+        .btn-primary:hover { transform: translateY(-1px); box-shadow: 0 6px 28px var(--accent-glow); }
+        .btn-primary:active { transform: translateY(0); }
+
+        .btn-danger {
+            background: linear-gradient(135deg, #ef4444, #dc2626);
+            color: #fff;
+            box-shadow: 0 4px 20px rgba(239,68,68,0.25);
+        }
+        .btn-danger:hover { transform: translateY(-1px); box-shadow: 0 6px 28px rgba(239,68,68,0.35); }
+        .btn-danger:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
+
+        .btn-outline {
+            background: transparent;
+            color: var(--muted);
+            border: 1px solid var(--border);
+        }
+        .btn-outline:hover { border-color: var(--accent); color: var(--text); }
+
+        /* ── Main content ── */
+        main { max-width: 1400px; margin: 0 auto; padding: 32px 40px; }
+
+        /* ── Stats bar ── */
+        .stats-bar {
+            display: flex;
+            gap: 16px;
+            margin-bottom: 28px;
+            flex-wrap: wrap;
+        }
+
+        .stat-chip {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            padding: 12px 20px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 14px;
+        }
+
+        .stat-chip .num {
+            font-size: 22px;
+            font-weight: 700;
+            color: var(--text);
+            line-height: 1;
+        }
+
+        .stat-chip .label { color: var(--muted); font-size: 12px; }
+
+        .stat-chip.keep-chip .num { color: var(--keep); }
+        .stat-chip.delete-chip .num { color: var(--delete); }
+        .stat-chip.selected-chip .num { color: var(--accent); }
+
+        /* ── Progress ── */
+        #progressSection {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            padding: 28px 32px;
+            margin-bottom: 28px;
+            display: none;
+        }
+
+        .progress-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 16px;
+        }
+
+        .progress-label { font-size: 15px; font-weight: 600; }
+        .progress-count { font-size: 14px; color: var(--muted); }
+
+        .progress-bar-wrap {
+            background: var(--surface2);
+            border-radius: 99px;
+            height: 8px;
+            overflow: hidden;
+        }
+
+        .progress-bar-fill {
+            height: 100%;
+            background: linear-gradient(90deg, var(--accent), #8b5cf6);
+            border-radius: 99px;
+            width: 0%;
+            transition: width 0.4s ease;
+        }
+
+        .progress-detail {
+            margin-top: 10px;
+            font-size: 13px;
+            color: var(--muted);
+        }
+
+        /* ── Success banner ── */
+        #successBanner {
+            display: none;
+            background: linear-gradient(135deg, rgba(34,197,94,0.12), rgba(34,197,94,0.05));
+            border: 1px solid rgba(34,197,94,0.3);
+            border-radius: var(--radius);
+            padding: 22px 28px;
+            margin-bottom: 28px;
+            animation: slideIn 0.4s ease;
+        }
+
+        @keyframes slideIn {
+            from { opacity: 0; transform: translateY(-10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .success-title {
+            font-size: 16px;
+            font-weight: 700;
+            color: var(--keep);
+            margin-bottom: 6px;
+        }
+
+        .success-sub {
+            font-size: 13px;
+            color: var(--muted);
+            line-height: 1.6;
+        }
+
+        .success-sub strong { color: var(--text); }
+
+        /* ── Error banner ── */
+        #errorBanner {
+            display: none;
+            background: rgba(239,68,68,0.08);
+            border: 1px solid rgba(239,68,68,0.3);
+            border-radius: var(--radius);
+            padding: 18px 24px;
+            margin-bottom: 28px;
+            font-size: 14px;
+            color: #f87171;
+        }
+
+        /* ── Empty state ── */
+        #emptyState {
+            text-align: center;
+            padding: 80px 20px;
+            color: var(--muted);
+        }
+
+        .empty-icon { font-size: 64px; margin-bottom: 16px; opacity: 0.5; }
+        .empty-title { font-size: 20px; font-weight: 600; margin-bottom: 8px; color: var(--text); }
+        .empty-sub { font-size: 14px; line-height: 1.6; }
+
+        /* ── Toolbar ── */
+        .toolbar {
+            display: none;
+            align-items: center;
+            justify-content: space-between;
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            padding: 14px 20px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+            gap: 12px;
+        }
+
+        .toolbar-left { display: flex; align-items: center; gap: 12px; }
+
+        .filter-btn {
+            background: var(--surface2);
+            border: 1px solid var(--border);
+            color: var(--muted);
+            border-radius: 8px;
+            padding: 6px 14px;
+            font-size: 13px;
+            font-family: 'Inter', sans-serif;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .filter-btn.active {
+            background: var(--accent-glow);
+            border-color: var(--accent);
+            color: var(--text);
+        }
+
+        .select-all-btn {
+            background: none;
+            border: none;
+            color: var(--accent);
+            font-size: 13px;
+            font-family: 'Inter', sans-serif;
+            cursor: pointer;
+            font-weight: 500;
+        }
+        .select-all-btn:hover { text-decoration: underline; }
+
+        /* ── Grid ── */
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+            gap: 18px;
+        }
+
+        /* ── Cards ── */
+        .card {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: var(--card-radius);
+            overflow: hidden;
+            transition: all 0.25s ease;
+            position: relative;
+            cursor: pointer;
+        }
+
+        .card:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 12px 32px rgba(0,0,0,0.4);
+            border-color: #3a4060;
+        }
+
+        .card.checked {
+            border-color: var(--delete);
+            box-shadow: 0 0 0 2px rgba(239,68,68,0.25);
+        }
+
+        .card.checked-keep {
+            border-color: var(--keep);
+            box-shadow: 0 0 0 2px rgba(34,197,94,0.25);
+        }
+
+        .thumb-wrap {
+            position: relative;
+            width: 100%;
+            height: 170px;
+            overflow: hidden;
+            background: var(--surface2);
+        }
+
+        .thumb-wrap img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            transition: transform 0.3s ease;
+        }
+
+        .card:hover .thumb-wrap img { transform: scale(1.04); }
+
+        .badge {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            padding: 4px 10px;
+            border-radius: 99px;
+            font-size: 11px;
+            font-weight: 700;
+            letter-spacing: 0.5px;
+            backdrop-filter: blur(8px);
+        }
+
+        .badge.keep {
+            background: rgba(34,197,94,0.85);
+            color: #fff;
+        }
+
+        .badge.delete {
+            background: rgba(239,68,68,0.85);
+            color: #fff;
+        }
+
+        .checkbox-overlay {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+        }
+
+        .checkbox-overlay input[type="checkbox"] {
+            width: 20px;
+            height: 20px;
+            accent-color: var(--delete);
+            cursor: pointer;
+            border-radius: 4px;
+        }
+
+        .card-body {
+            padding: 12px 14px;
+        }
+
+        .filename {
+            font-size: 11px;
+            color: var(--muted);
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .card-label {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-top: 8px;
+        }
+
+        .mark-label {
+            font-size: 12px;
+            color: var(--muted);
+            font-weight: 500;
+        }
+
+        .mark-label.active { color: var(--delete); }
+
+        /* ── Responsive ── */
+        @media (max-width: 768px) {
+            header { padding: 18px 20px; }
+            main { padding: 20px 16px; }
+            .grid { grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 12px; }
+        }
+
+        /* ── Spinner ── */
+        .spinner {
+            display: inline-block;
+            width: 16px; height: 16px;
+            border: 2px solid rgba(255,255,255,0.2);
+            border-top-color: #fff;
+            border-radius: 50%;
+            animation: spin 0.7s linear infinite;
+            vertical-align: middle;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+    </style>
+</head>
+<body>
+
+<header>
+    <div class="logo">
+        <div class="logo-icon">📸</div>
+        <div>
+            <h1>Photos Cleaner</h1>
+            <span>AI-powered · LLaVA · Google Photos</span>
+        </div>
+    </div>
+    <div class="header-actions">
+        <button class="btn btn-primary" id="scanBtn" onclick="startScan()">🔍 Scan Photos</button>
+        <button class="btn btn-danger" id="deleteBtn" onclick="flagSelected()" disabled>🗑️ Flag for Deletion</button>
+    </div>
+</header>
+
+<main>
+
+    <!-- Stats bar -->
+    <div class="stats-bar" id="statsBar" style="display:none">
+        <div class="stat-chip">
+            <div>
+                <div class="num" id="totalCount">0</div>
+                <div class="label">Total Photos</div>
+            </div>
+        </div>
+        <div class="stat-chip keep-chip">
+            <div>
+                <div class="num" id="keepCount">0</div>
+                <div class="label">✅ Keep</div>
+            </div>
+        </div>
+        <div class="stat-chip delete-chip">
+            <div>
+                <div class="num" id="deleteCount">0</div>
+                <div class="label">🗑️ AI Flagged</div>
+            </div>
+        </div>
+        <div class="stat-chip selected-chip">
+            <div>
+                <div class="num" id="selectedCount">0</div>
+                <div class="label">☑️ Selected</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Progress -->
+    <div id="progressSection">
+        <div class="progress-header">
+            <span class="progress-label">⚡ AI Scanning in Progress…</span>
+            <span class="progress-count" id="progressCount">0 / 0</span>
+        </div>
+        <div class="progress-bar-wrap">
+            <div class="progress-bar-fill" id="progressFill"></div>
+        </div>
+        <div class="progress-detail" id="progressDetail">Fetching photos from Google Photos…</div>
+    </div>
+
+    <!-- Success banner -->
+    <div id="successBanner">
+        <div class="success-title">✅ Flagged for Deletion</div>
+        <div class="success-sub" id="successMsg"></div>
+    </div>
+
+    <!-- Error banner -->
+    <div id="errorBanner"></div>
+
+    <!-- Toolbar -->
+    <div class="toolbar" id="toolbar">
+        <div class="toolbar-left">
+            <span style="font-size:13px; color:var(--muted);">Filter:</span>
+            <button class="filter-btn active" id="filterAll" onclick="setFilter('all')">All</button>
+            <button class="filter-btn" id="filterDelete" onclick="setFilter('DELETE')">🗑️ Delete</button>
+            <button class="filter-btn" id="filterKeep" onclick="setFilter('KEEP')">✅ Keep</button>
+        </div>
+        <button class="select-all-btn" onclick="selectAll()">Select all DELETE</button>
+    </div>
+
+    <!-- Empty state -->
+    <div id="emptyState">
+        <div class="empty-icon">🖼️</div>
+        <div class="empty-title">No photos scanned yet</div>
+        <div class="empty-sub">Click <strong>Scan Photos</strong> to fetch your Google Photos<br>and classify them with AI.</div>
+    </div>
+
+    <!-- Grid -->
+    <div class="grid" id="grid"></div>
+
+</main>
+
+<script>
+    let pollInterval;
+    let allResults = [];
+    let currentFilter = 'all';
+
+    // ── Scan ──────────────────────────────────────────────
+    function startScan() {
+        document.getElementById('grid').innerHTML = '';
+        document.getElementById('emptyState').style.display = 'none';
+        document.getElementById('toolbar').style.display = 'none';
+        document.getElementById('statsBar').style.display = 'none';
+        document.getElementById('successBanner').style.display = 'none';
+        document.getElementById('errorBanner').style.display = 'none';
+        document.getElementById('deleteBtn').disabled = true;
+
+        const progressSection = document.getElementById('progressSection');
+        progressSection.style.display = 'block';
+        document.getElementById('progressCount').textContent = '0 / ?';
+        document.getElementById('progressFill').style.width = '0%';
+        document.getElementById('progressDetail').textContent = 'Connecting to Google Photos…';
+
+        const btn = document.getElementById('scanBtn');
+        btn.innerHTML = '<span class="spinner"></span> Scanning…';
+        btn.disabled = true;
+
+        fetch('/scan', { method: 'POST' })
+            .then(r => r.json())
+            .then(data => {
+                if (data.status === 'auth_required') {
+                    showError('Authentication required. Please restart the app and log in again.');
+                    resetScanBtn();
+                    return;
+                }
+                if (data.status === 'error') {
+                    showError('Error: ' + data.message);
+                    resetScanBtn();
+                    return;
+                }
+                pollInterval = setInterval(checkProgress, 2000);
+            })
+            .catch(err => {
+                showError('Failed to connect to server: ' + err);
+                resetScanBtn();
+            });
+    }
+
+    function resetScanBtn() {
+        const btn = document.getElementById('scanBtn');
+        btn.innerHTML = '🔍 Scan Photos';
+        btn.disabled = false;
+        document.getElementById('progressSection').style.display = 'none';
+        document.getElementById('emptyState').style.display = 'block';
+    }
+
+    // ── Poll Progress ─────────────────────────────────────
+    function checkProgress() {
+        fetch('/progress')
+            .then(r => r.json())
+            .then(data => {
+                const pct = data.total > 0 ? Math.round((data.progress / data.total) * 100) : 0;
+                document.getElementById('progressCount').textContent = `${data.progress} / ${data.total || '?'}`;
+                document.getElementById('progressFill').style.width = pct + '%';
+                document.getElementById('progressDetail').textContent =
+                    data.progress === 0
+                        ? 'Fetching photo list…'
+                        : `Classifying photo ${data.progress} of ${data.total} with LLaVA AI…`;
+
+                fetch('/results')
+                    .then(r => r.json())
+                    .then(results => {
+                        allResults = results;
+                        renderGrid(results);
+                        updateStats(results);
+                    });
+
+                if (!data.running) {
+                    clearInterval(pollInterval);
+                    document.getElementById('progressSection').style.display = 'none';
+
+                    if (data.total === 0 && data.progress === 0) {
+                        showError('No photos were fetched. Check that your Google account has photos and that the API scope is correct.');
+                        resetScanBtn();
+                        return;
+                    }
+
+                    document.getElementById('statsBar').style.display = 'flex';
+                    document.getElementById('toolbar').style.display = 'flex';
+                    document.getElementById('deleteBtn').disabled = false;
+
+                    const btn = document.getElementById('scanBtn');
+                    btn.innerHTML = '🔄 Re-scan';
+                    btn.disabled = false;
+                }
+            });
+    }
+
+    // ── Stats ─────────────────────────────────────────────
+    function updateStats(results) {
+        const keep = results.filter(r => r.decision === 'KEEP').length;
+        const del  = results.filter(r => r.decision === 'DELETE').length;
+        const sel  = document.querySelectorAll('.del-check:checked').length;
+
+        document.getElementById('totalCount').textContent  = results.length;
+        document.getElementById('keepCount').textContent   = keep;
+        document.getElementById('deleteCount').textContent = del;
+        document.getElementById('selectedCount').textContent = sel;
+    }
+
+    // ── Filter ────────────────────────────────────────────
+    function setFilter(f) {
+        currentFilter = f;
+        ['filterAll','filterDelete','filterKeep'].forEach(id =>
+            document.getElementById(id).classList.remove('active'));
+        document.getElementById(f === 'all' ? 'filterAll' : f === 'DELETE' ? 'filterDelete' : 'filterKeep')
+            .classList.add('active');
+        renderGrid(allResults);
+    }
+
+    function selectAll() {
+        document.querySelectorAll('.del-check').forEach(cb => {
+            const card = cb.closest('.card');
+            if (card.style.display !== 'none') cb.checked = true;
+        });
+        updateStats(allResults);
+        updateCardHighlights();
+    }
+
+    // ── Render Grid ───────────────────────────────────────
+    function renderGrid(results) {
+        const grid = document.getElementById('grid');
+        const checked = new Set([...document.querySelectorAll('.del-check:checked')].map(c => c.value));
+
+        const filtered = currentFilter === 'all'
+            ? results
+            : results.filter(r => r.decision === currentFilter);
+
+        grid.innerHTML = '';
+        filtered.forEach(photo => {
+            const isDelete = photo.decision === 'DELETE';
+            const isChecked = checked.has(photo.id) || (isDelete && !checked.has('__unchecked__' + photo.id));
+            const card = document.createElement('div');
+            card.className = 'card' + (isChecked ? ' checked' : '');
+            card.dataset.id = photo.id;
+            card.dataset.decision = photo.decision;
+            card.innerHTML = `
+                <div class="thumb-wrap">
+                    <img src="${photo.url}" loading="lazy"
+                         onerror="this.style.display='none'; this.parentElement.innerHTML+='<div style=\'display:flex;align-items:center;justify-content:center;height:100%;color:#6b7a99;font-size:13px;\'>No preview</div>'">
+                    <span class="badge ${isDelete ? 'delete' : 'keep'}">${isDelete ? '🗑️ DELETE' : '✅ KEEP'}</span>
+                    <div class="checkbox-overlay">
+                        <input type="checkbox" class="del-check"
+                               value="${photo.id}"
+                               data-filename="${photo.filename}"
+                               ${isDelete ? 'checked' : ''}
+                               onclick="event.stopPropagation(); onCheckChange(this)">
+                    </div>
+                </div>
+                <div class="card-body">
+                    <div class="filename" title="${photo.filename}">${photo.filename}</div>
+                    <div class="card-label">
+                        <span class="mark-label ${isDelete ? 'active' : ''}" id="lbl-${photo.id}">
+                            ${isDelete ? 'Marked for deletion' : 'Will be kept'}
+                        </span>
+                    </div>
+                </div>`;
+
+            card.addEventListener('click', function(e) {
+                if (e.target.type === 'checkbox') return;
+                const cb = card.querySelector('.del-check');
+                cb.checked = !cb.checked;
+                onCheckChange(cb);
+            });
+
+            grid.appendChild(card);
+        });
+
+        if (filtered.length === 0 && results.length > 0) {
+            grid.innerHTML = `<div style="grid-column:1/-1;text-align:center;padding:40px;color:var(--muted);font-size:14px;">No photos in this filter.</div>`;
+        }
+
+        updateStats(results);
+    }
+
+    function onCheckChange(cb) {
+        const card = cb.closest('.card');
+        const lbl = card.querySelector('.mark-label');
+        if (cb.checked) {
+            card.classList.add('checked');
+            card.classList.remove('checked-keep');
+            if (lbl) { lbl.textContent = 'Marked for deletion'; lbl.classList.add('active'); }
+        } else {
+            card.classList.remove('checked');
+            card.classList.add('checked-keep');
+            if (lbl) { lbl.textContent = 'Will be kept'; lbl.classList.remove('active'); }
+        }
+        updateStats(allResults);
+    }
+
+    function updateCardHighlights() {
+        document.querySelectorAll('.del-check').forEach(cb => onCheckChange(cb));
+    }
+
+    // ── Flag for Deletion ─────────────────────────────────
+    function flagSelected() {
+        const checked = [...document.querySelectorAll('.del-check:checked')];
+        const filenames = checked.map(c => c.dataset.filename).filter(Boolean);
+
+        if (filenames.length === 0) {
+            showError('No photos selected! Check at least one photo to flag.');
+            return;
+        }
+
+        if (!confirm(`Flag ${filenames.length} photo(s) for manual deletion?\n\nThis will save their filenames to flagged_for_deletion.txt in your project folder. No photos will be deleted automatically.`)) return;
+
+        document.getElementById('deleteBtn').innerHTML = '<span class="spinner"></span> Saving…';
+        document.getElementById('deleteBtn').disabled = true;
+
+        fetch('/delete', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ filenames: filenames })
+        })
+        .then(r => r.json())
+        .then(data => {
+            if (data.status === 'ok') {
+                const banner = document.getElementById('successBanner');
+                document.getElementById('successMsg').innerHTML =
+                    `<strong>${data.count} photo filename(s)</strong> have been saved to ` +
+                    `<strong>flagged_for_deletion.txt</strong> in your project folder.<br>` +
+                    `Open Google Photos on the web, search for each file by name, and delete manually.`;
+                banner.style.display = 'block';
+                banner.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            } else {
+                showError('Error saving file: ' + (data.message || 'Unknown error'));
+            }
+        })
+        .catch(err => showError('Request failed: ' + err))
+        .finally(() => {
+            document.getElementById('deleteBtn').innerHTML = '🗑️ Flag for Deletion';
+            document.getElementById('deleteBtn').disabled = false;
+        });
+    }
+
+    // ── Helpers ───────────────────────────────────────────
+    function showError(msg) {
+        const el = document.getElementById('errorBanner');
+        el.textContent = '⚠️ ' + msg;
+        el.style.display = 'block';
+        setTimeout(() => { el.style.display = 'none'; }, 8000);
+    }
+</script>
+</body>
+</html>
